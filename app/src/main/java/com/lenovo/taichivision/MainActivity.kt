@@ -8,17 +8,20 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
     private lateinit var statusTextView: TextView
+    private val cameraExecutor = Executors.newSingleThreadExecutor()
 
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -73,18 +76,32 @@ class MainActivity : AppCompatActivity() {
             }
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            val imageAnalysis = ImageAnalysis.Builder().build().also { analysis ->
+                analysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                    runOnUiThread {
+                        statusTextView.text = "Analyzing frame: ${imageProxy.width}x${imageProxy.height}"
+                    }
+                    imageProxy.close()
+                }
+            }
 
             try {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
                     this,
                     cameraSelector,
-                    preview
+                    preview,
+                    imageAnalysis
                 )
                 statusTextView.text = "Camera preview started."
             } catch (exception: Exception) {
                 statusTextView.text = "Camera start failed: ${exception.message}"
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraExecutor.shutdown()
     }
 }
