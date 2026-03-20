@@ -9,14 +9,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
+import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
@@ -70,9 +73,15 @@ class MainActivity : AppCompatActivity() {
                 .setMinPoseDetectionConfidence(0.5f)
                 .setMinPosePresenceConfidence(0.5f)
                 .setMinTrackingConfidence(0.5f)
-                .setResultListener { _: PoseLandmarkerResult, _: MPImage ->
+                .setResultListener { result: PoseLandmarkerResult, _: MPImage ->
+                    val poseCount = result.landmarks().size
+                    val landmarkCount = result.landmarks().firstOrNull()?.size ?: 0
                     runOnUiThread {
-                        statusTextView.text = "Pose result received."
+                        statusTextView.text = if (poseCount > 0) {
+                            "Pose detected: $poseCount pose(s), $landmarkCount landmarks."
+                        } else {
+                            "No pose detected."
+                        }
                     }
                 }
                 .setErrorListener { error ->
@@ -115,12 +124,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            val imageAnalysis = ImageAnalysis.Builder().build().also { analysis ->
+            val imageAnalysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                .build()
+                .also { analysis ->
                 analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                    runOnUiThread {
-                        statusTextView.text = "Analyzing frame: ${imageProxy.width}x${imageProxy.height}"
-                    }
-                    imageProxy.close()
+                    analyzePoseFrame(imageProxy)
                 }
             }
 
@@ -137,6 +147,31 @@ class MainActivity : AppCompatActivity() {
                 statusTextView.text = "Camera start failed: ${exception.message}"
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun analyzePoseFrame(imageProxy: ImageProxy) {
+        val poseDetector = poseLandmarker
+        if (poseDetector == null) {
+            imageProxy.close()
+            return
+        }
+
+        try {
+            val bitmap = imageProxy.toBitmap()
+            val mpImage = BitmapImageBuilder(bitmap).build()
+            val imageProcessingOptions = ImageProcessingOptions.builder()
+                .setRotationDegrees(imageProxy.imageInfo.rotationDegrees)
+                .build()
+            val timestampMs = imageProxy.imageInfo.timestamp / 1_000_000L
+
+            poseDetector.detectAsync(mpImage, imageProcessingOptions, timestampMs)
+        } catch (e: Exception) {
+            runOnUiThread {
+                statusTextView.text = "Pose analyze failed: ${e.message}"
+            }
+        } finally {
+            imageProxy.close()
+        }
     }
 
     override fun onDestroy() {
