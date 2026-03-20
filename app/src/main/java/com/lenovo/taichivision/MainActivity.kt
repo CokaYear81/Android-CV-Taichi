@@ -15,6 +15,11 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.mediapipe.framework.image.MPImage
+import com.google.mediapipe.tasks.core.BaseOptions
+import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
+import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
@@ -22,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
     private lateinit var statusTextView: TextView
     private val cameraExecutor = Executors.newSingleThreadExecutor()
+    private var poseLandmarker: PoseLandmarker? = null
 
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -47,7 +53,40 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        setupPoseLandmarker()
         checkCameraPermission()
+    }
+
+    private fun setupPoseLandmarker() {
+        try {
+            val baseOptions = BaseOptions.builder()
+                .setModelAssetPath("pose_landmarker_lite.task")
+                .build()
+
+            val options = PoseLandmarker.PoseLandmarkerOptions.builder()
+                .setBaseOptions(baseOptions)
+                .setRunningMode(RunningMode.LIVE_STREAM)
+                .setNumPoses(1)
+                .setMinPoseDetectionConfidence(0.5f)
+                .setMinPosePresenceConfidence(0.5f)
+                .setMinTrackingConfidence(0.5f)
+                .setResultListener { _: PoseLandmarkerResult, _: MPImage ->
+                    runOnUiThread {
+                        statusTextView.text = "Pose result received."
+                    }
+                }
+                .setErrorListener { error ->
+                    runOnUiThread {
+                        statusTextView.text = "Pose error: ${error.message}"
+                    }
+                }
+                .build()
+
+            poseLandmarker = PoseLandmarker.createFromOptions(this, options)
+            statusTextView.text = "Pose landmarker ready."
+        } catch (e: Exception) {
+            statusTextView.text = "Pose setup failed: ${e.message}"
+        }
     }
 
     private fun checkCameraPermission() {
@@ -102,6 +141,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        poseLandmarker?.close()
+        poseLandmarker = null
         cameraExecutor.shutdown()
     }
 }
