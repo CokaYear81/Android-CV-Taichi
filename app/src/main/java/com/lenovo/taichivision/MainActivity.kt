@@ -23,14 +23,23 @@ import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
+import com.lenovo.taichivision.pose.PoseResultBundle
+import com.lenovo.taichivision.ui.OverlayView
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
+    private lateinit var overlayView: OverlayView
     private lateinit var statusTextView: TextView
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private var poseLandmarker: PoseLandmarker? = null
+    @Volatile
+    private var lastFrameWidth = 0
+    @Volatile
+    private var lastFrameHeight = 0
+    @Volatile
+    private var lastRotationDegrees = 0
 
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -48,6 +57,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         previewView = findViewById(R.id.previewView)
+        overlayView = findViewById(R.id.overlayView)
         statusTextView = findViewById(R.id.statusTextView)
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { view, insets ->
@@ -76,17 +86,32 @@ class MainActivity : AppCompatActivity() {
                 .setResultListener { result: PoseLandmarkerResult, _: MPImage ->
                     val poseCount = result.landmarks().size
                     val landmarkCount = result.landmarks().firstOrNull()?.size ?: 0
+                    val poseLandmarks = result.landmarks().firstOrNull().orEmpty()
                     runOnUiThread {
                         statusTextView.text = if (poseCount > 0) {
                             "Pose detected: $poseCount pose(s), $landmarkCount landmarks."
                         } else {
                             "No pose detected."
                         }
+                        if (poseCount > 0) {
+                            overlayView.setResults(
+                                PoseResultBundle(
+                                    landmarks = poseLandmarks,
+                                    inputImageWidth = lastFrameWidth,
+                                    inputImageHeight = lastFrameHeight,
+                                    rotationDegrees = lastRotationDegrees,
+                                    hasPose = true
+                                )
+                            )
+                        } else {
+                            overlayView.clear()
+                        }
                     }
                 }
                 .setErrorListener { error ->
                     runOnUiThread {
                         statusTextView.text = "Pose error: ${error.message}"
+                        overlayView.clear()
                     }
                 }
                 .build()
@@ -157,6 +182,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         try {
+            lastFrameWidth = imageProxy.width
+            lastFrameHeight = imageProxy.height
+            lastRotationDegrees = imageProxy.imageInfo.rotationDegrees
             val bitmap = imageProxy.toBitmap()
             val mpImage = BitmapImageBuilder(bitmap).build()
             val imageProcessingOptions = ImageProcessingOptions.builder()
@@ -168,6 +196,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             runOnUiThread {
                 statusTextView.text = "Pose analyze failed: ${e.message}"
+                overlayView.clear()
             }
         } finally {
             imageProxy.close()
