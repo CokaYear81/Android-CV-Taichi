@@ -1,16 +1,15 @@
 # Android-CV-Taichi
 
-[中文说明](README.md)
+[English README](README_EN.md)
 
-An Android-based Taichi motion capture and visualization project built with the device camera and `MediaPipe Pose`.
+An Android camera-based motion capture and visualization project built on `MediaPipe Pose`.
 
-At the current stage, the goal is **not** scoring or model training yet. The focus is to make the **mobile-side keypoint capture pipeline** stable and reusable:
+At the current stage, the project has moved beyond simply stabilizing the mobile capture pipeline. The current focus is now:
 
-- Real-time camera preview
-- Human pose keypoint detection
-- Skeleton overlay visualization
-- Raw video export
-- Training-friendly keypoint `JSON` export
+- keep the mobile keypoint capture pipeline stable
+- use `pose17_v1` as the formal sample format
+- build the first trainable dataset around **Baduanjin preparation posture**
+- prepare for a later `PyTorch + GRU` binary classification baseline
 
 ---
 
@@ -20,54 +19,67 @@ At the current stage, the goal is **not** scoring or model training yet. The foc
 - `week1`
   - `CameraX Preview`
   - `ImageAnalysis`
-  - Real-device run and basic build validation
+  - real-device run and basic build validation
 
 - `week2`
   - `MediaPipe Pose Landmarker` integration
-  - Real-time return of `33` pose landmarks
-  - Skeleton overlay creation and alignment fix
-  - Mobile capture flow:
+  - real-time pose inference pipeline
+  - skeleton overlay creation and alignment fix
+  - mobile capture flow:
     - input `subject_id`
     - input `action_name`
     - `Start Capture / Stop Capture`
-  - Export:
+  - export of both:
     - raw video `mp4`
-    - fixed-length keypoint `json`
+    - training-friendly keypoint `json`
+
+- `week3` already completed so far
+  - formal pose format switched from `33` landmarks to `17`
+  - new top-level field:
+    - `landmark_schema_version = "pose17_v1"`
+  - overlay now displays only the `17`-landmark skeleton
+  - export logic now writes fixed `17` landmarks and still keeps zero-padded no-pose frames
 
 ### Current Project State
 This repository is now usable as an **Android keypoint capture tool**, not just a demo.
 
 Already validated:
-- Real-time skeleton display
-- Capture of one motion segment
-- Generation of both files inside the app private directory:
+- real-time skeleton display
+- capture of one motion segment
+- generation of both files inside the app private directory:
   - `json`
   - `mp4`
-- JSON structure that can be read later by Python / PyTorch
+- formal sample format:
+  - `pose17_v1`
+  - `T x 17 x 4`
 
-### Next Planned Stage
-- `week3`
-  - choose the first Taichi movement
-  - define error labels
-  - define a fixed single-camera front-view collection protocol
-  - collect and review a first batch of samples
+### Current Week 3 Goal
+The formal week 3 target is now:
+
+- build the first trainable dataset for **Baduanjin preparation posture**
+- fix the first learning task as:
+  - **standard / non-standard binary classification**
+- focus on:
+  - sample collection
+  - label definition
+  - dataset organization
+  - training preparation
 
 ---
 
-## Project Goal
-
-The overall roadmap is:
+## Current Project Roadmap
 
 ```text
 Android Camera
 -> Pose Keypoints
--> JSON / Video Export
+-> pose17_v1 JSON / Video Export
+-> Dataset / Labels / Splits
 -> Python / PyTorch Training
--> Rule-based analysis / model evaluation
--> Later on-device deployment
+-> GRU Baseline
+-> Later Rule-based Analysis / On-device Deployment
 ```
 
-This repository currently covers the **Android capture side** of that pipeline.
+This repository currently covers the **Android capture side** of the pipeline and now starts to support the training-preparation stage.
 
 ---
 
@@ -77,8 +89,8 @@ This repository currently covers the **Android capture side** of that pipeline.
 android_app/
 ├── app/
 │   ├── src/main/java/com/lenovo/taichivision/
-│   │   ├── data/         # JSON data models and file writer
-│   │   ├── pose/         # lightweight pose result bundle
+│   │   ├── data/         # JSON models and file writer
+│   │   ├── pose/         # pose result objects and 33 -> 17 landmark subset logic
 │   │   └── ui/           # OverlayView
 │   ├── src/main/res/
 │   │   └── layout/       # main UI layout
@@ -93,13 +105,13 @@ android_app/
 
 - Android Studio
 - Android SDK
-- A real Android phone with USB debugging
-- A Gradle environment that can download dependencies
+- a real Android phone with USB debugging
+- a Gradle environment that can download dependencies
 
 Recommended:
-- Use a real device instead of an emulator
-- Use the rear camera
-- Keep the full body inside the frame
+- use a real device instead of an emulator
+- use the rear camera
+- keep the full body inside the frame
 
 ---
 
@@ -121,9 +133,9 @@ android_app
 Wait until `Gradle Sync` finishes.
 
 ### 4. Connect a phone and run
-- Enable Developer Options and USB debugging on the phone
-- Connect the device
-- Click `Run` in Android Studio
+- enable Developer Options and USB debugging on the phone
+- connect the device
+- click `Run` in Android Studio
 
 ---
 
@@ -137,7 +149,7 @@ Default model file:
 app/src/main/assets/pose_landmarker_lite.task
 ```
 
-If the file is missing after cloning, add the model file according to the official MediaPipe instructions.
+If the file is missing after cloning, add it according to the official MediaPipe instructions.
 
 ---
 
@@ -149,16 +161,16 @@ After launch, you will see:
 - a small capture input area at the bottom
 
 ### Capture Steps
-1. Enter `subject_id`
-2. Enter `action_name`
-3. Tap `Start Capture`
-4. Perform the movement
-5. Tap `Stop Capture`
+1. enter `subject_id`
+2. enter `action_name`
+3. tap `Start Capture`
+4. perform the movement
+5. tap `Stop Capture`
 
 ### Current Capture Assumptions
 - fixed front-view camera setup
 - single person
-- no separate view label
+- full body inside the frame
 - saves both:
   - raw video
   - keypoint JSON
@@ -202,19 +214,17 @@ Right-click the target `json` or `mp4` and choose:
   or
 - `Pull`
 
-You can then use the files locally for:
-- data inspection
-- annotation preparation
-- PyTorch training
+You can then save the files locally.
 
 ---
 
 ## JSON Format
 
-The current JSON design is intended to be **training-friendly**.
+The current formal JSON design is intended to be **training-friendly**.
 
 ### Top-level fields
 - `sample_id`
+- `landmark_schema_version`
 - `subject_id`
 - `action_name`
 - `capture_started_at`
@@ -235,63 +245,90 @@ The current JSON design is intended to be **training-friendly**.
 - `pose_landmarks`
 
 ### Landmark fields
-Each frame stores exactly `33` landmarks, and each landmark contains:
+Each frame stores exactly `17` landmarks, and each landmark contains:
 - `x`
 - `y`
 - `z`
 - `visibility`
 
+### Formal schema
+- `landmark_schema_version = "pose17_v1"`
+
+### Landmark order
+1. `nose`
+2. `left_shoulder`
+3. `right_shoulder`
+4. `left_elbow`
+5. `right_elbow`
+6. `left_wrist`
+7. `right_wrist`
+8. `left_hip`
+9. `right_hip`
+10. `left_knee`
+11. `right_knee`
+12. `left_ankle`
+13. `right_ankle`
+14. `left_heel`
+15. `right_heel`
+16. `left_foot_index`
+17. `right_foot_index`
+
 ### Important rule
-If no human pose is detected in a frame:
+If no pose is detected in a frame:
 - the frame is still kept
 - `has_pose=false`
-- `pose_landmarks` is padded with `33` zero landmarks
+- `pose_landmarks` is padded with `17` zero landmarks
 
 This makes it easy to load the data as:
 
 ```text
-T x 33 x 4
+T x 17 x 4
 ```
+
+---
+
+## Current Week 3 Training Preparation Target
+
+The formal week 3 target is fixed as:
+- action:
+  - `baduanjin_preparation`
+- first learning task:
+  - `is_standard` binary classification
+- first model direction:
+  - `GRU`
+- first training window:
+  - `32 x 17 x 4`
+
+Week 3 is not about achieving strong model accuracy yet. It is about finishing:
+- sample collection
+- label definition
+- subject-wise dataset split
+- minimum training pipeline readiness
 
 ---
 
 ## Current Limitations
 
-This is still an early-stage capture tool. It does **not** yet include:
-
+The current version still does **not** include:
 - movement scoring
 - rule engine
-- PyTorch training code
-- Hand Landmarker
+- full `PyTorch` training code
+- `Hand Landmarker`
 - multi-person detection
 - automatic action recognition
-- ExecuTorch deployment
-
----
-
-## Collaboration Notes
-
-If you are opening this repo for the first time, the recommended order is:
-
-1. run the Android app
-2. confirm the skeleton overlay works
-3. complete one `Start Capture -> Stop Capture` cycle
-4. confirm that both files are generated:
-   - `json`
-   - `mp4`
-5. then move on to data collection or training-related work
+- `ExecuTorch` deployment
 
 ---
 
 ## Recommended Next Step
 
-The next useful step is **not** training a large model immediately.  
+The most useful next step is not training a large model immediately.  
 Instead:
 
-- choose the first Taichi movement
-- define standard vs error cases
-- fix the collection protocol
-- collect a clean first batch of samples
+- collect the first formal batch for Baduanjin preparation
+- build a label table
+- split data by `subject_id` into train / val / test
+- run a first `PyTorch` `GRU` binary classification baseline
 
 ---
 
