@@ -31,22 +31,7 @@ class OverlayView @JvmOverloads constructor(
 
     private var poseResult: PoseResultBundle? = null
 
-    private val primaryConnections = listOf(
-        0 to 11,
-        0 to 12,
-        11 to 12,
-        11 to 13,
-        13 to 15,
-        12 to 14,
-        14 to 16,
-        11 to 23,
-        12 to 24,
-        23 to 24,
-        23 to 25,
-        25 to 27,
-        24 to 26,
-        26 to 28
-    )
+    private val primaryConnections = com.lenovo.taichivision.pose.PoseLandmarkSubset.DISPLAY_CONNECTIONS
 
     fun setResults(result: PoseResultBundle?) {
         poseResult = result
@@ -66,8 +51,13 @@ class OverlayView @JvmOverloads constructor(
             return
         }
 
-        drawConnections(canvas, result.landmarks)
-        drawLandmarks(canvas, result.landmarks)
+        val displayLandmarks = com.lenovo.taichivision.pose.PoseLandmarkSubset.selectLandmarks(result.landmarks)
+        if (displayLandmarks.isEmpty()) {
+            return
+        }
+
+        drawConnections(canvas, displayLandmarks)
+        drawLandmarks(canvas, displayLandmarks)
     }
 
     private fun drawConnections(canvas: Canvas, landmarks: List<NormalizedLandmark>) {

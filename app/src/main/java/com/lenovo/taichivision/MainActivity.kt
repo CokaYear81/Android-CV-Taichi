@@ -381,8 +381,9 @@ class MainActivity : AppCompatActivity() {
                     val sampleRecord = synchronized(captureLock) {
                         val metadata = currentCaptureMetadata ?: return@synchronized null
                         PoseSampleRecord(
-                            sampleId = metadata.sampleId,
-                            subjectId = metadata.subjectId,
+                                sampleId = metadata.sampleId,
+                                landmarkSchemaVersion = com.lenovo.taichivision.pose.PoseLandmarkSubset.SCHEMA_VERSION,
+                                subjectId = metadata.subjectId,
                             actionName = metadata.actionName,
                             captureStartedAt = metadata.captureStartedAt,
                             captureEndedAt = currentIsoTimestamp(),
@@ -506,7 +507,10 @@ class MainActivity : AppCompatActivity() {
             return zeroLandmarkRecords()
         }
 
-        val mappedLandmarks = landmarks.take(33).map { landmark ->
+        val selectedLandmarks =
+            com.lenovo.taichivision.pose.PoseLandmarkSubset.selectLandmarks(landmarks)
+
+        val mappedLandmarks = selectedLandmarks.map { landmark ->
             LandmarkRecord(
                 x = landmark.x(),
                 y = landmark.y(),
@@ -515,7 +519,7 @@ class MainActivity : AppCompatActivity() {
             )
         }.toMutableList()
 
-        while (mappedLandmarks.size < 33) {
+        while (mappedLandmarks.size < com.lenovo.taichivision.pose.PoseLandmarkSubset.OUTPUT_LANDMARK_COUNT) {
             mappedLandmarks.add(
                 LandmarkRecord(
                     x = 0f,
@@ -529,7 +533,8 @@ class MainActivity : AppCompatActivity() {
         return mappedLandmarks
     }
 
-    private fun zeroLandmarkRecords(): List<LandmarkRecord> = List(33) {
+    private fun zeroLandmarkRecords(): List<LandmarkRecord> =
+        List(com.lenovo.taichivision.pose.PoseLandmarkSubset.OUTPUT_LANDMARK_COUNT) {
         LandmarkRecord(
             x = 0f,
             y = 0f,

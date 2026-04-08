@@ -51,6 +51,7 @@ data class PoseFrameRecord(
 
 data class PoseSampleRecord(
     val sampleId: String,
+    val landmarkSchemaVersion: String,
     val subjectId: String,
     val actionName: String,
     val captureStartedAt: String,
@@ -66,6 +67,7 @@ data class PoseSampleRecord(
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("sample_id", sampleId)
+        .put("landmark_schema_version", landmarkSchemaVersion)
         .put("subject_id", subjectId)
         .put("action_name", actionName)
         .put("capture_started_at", captureStartedAt)
