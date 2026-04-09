@@ -49,7 +49,7 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.video)
-    implementation(libs.google.mediapipe.tasks.vision)
+    implementation("com.google.mediapipe:tasks-vision:0.10.14")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

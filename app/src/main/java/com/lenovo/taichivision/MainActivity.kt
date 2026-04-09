@@ -222,10 +222,10 @@ class MainActivity : AppCompatActivity() {
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
                 .also { analysis ->
-                analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                    analyzePoseFrame(imageProxy)
+                    analysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                        analyzePoseFrame(imageProxy)
+                    }
                 }
-            }
 
             try {
                 cameraProvider.unbindAll()
