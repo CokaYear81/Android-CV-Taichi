@@ -40,6 +40,11 @@ At the current stage, the project has moved beyond simply stabilizing the mobile
   - overlay now displays only the `17`-landmark skeleton
   - export logic now writes fixed `17` landmarks and still keeps zero-padded no-pose frames
 
+  - `week4` (Completed)
+  - **Core Dependency Upgrade**: Upgraded `MediaPipe Tasks Vision` to **`0.10.14`**.
+    - Resolved the native `SIGSEGV` crash issues associated with Android 15 kernels (specifically addressing the 16KB Page Size alignment requirement).
+    - Improved stability on the latest devices from vivo, iQOO, and others.
+
 ### Current Project State
 This repository is now usable as an **Android keypoint capture tool**, not just a demo.
 
