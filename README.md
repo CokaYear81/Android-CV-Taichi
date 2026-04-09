@@ -42,6 +42,7 @@
 - 采集单段动作样本
 - 同步导出 `json + mp4`
 - 为后续 `PyTorch + GRU` 训练准备数据
+- 在本地 notebook 中快速检查 `pose17_v1` 样本质量与时间轴
 
 ---
 
@@ -73,7 +74,10 @@ android_app/
 │   ├── src/main/res/
 │   │   └── layout/       # 主界面布局
 │   └── src/main/assets/  # MediaPipe 模型文件
+├── data/                 # Python 可视化示例数据与 demo notebook
+├── pose17_viz/           # pose17_v1 JSON 读取、预览与动画工具包
 ├── gradle/
+├── logs/                 # 开发日志
 └── README.md
 ```
 
@@ -209,6 +213,39 @@ data/data/com.lenovo.taichivision/files/captures/
 - 继续稳定手机端关键点采集
 - 完成数据清洗、标签定义与数据划分
 - 为后续 `PyTorch + GRU` 二分类训练做准备
+
+---
+
+## Python 可视化工具
+
+为方便在训练前快速检查 `pose17_v1` 样本，仓库当前补充了一套轻量的 Python 可视化工具：
+
+- `pose17_viz/`
+  - 负责 `pose17_v1` JSON 的读取、校验、摘要、静态预览和骨架动画
+- `data/pose17_viz_demo.ipynb`
+  - 推荐的 notebook 入口
+  - 只需要修改 `INPUT_JSON` 文件名，就可以查看同目录下的其他样本
+- `data/0004_firstaction1_20260408_202501.json`
+  - 当前默认示例样本
+
+### 使用方式
+1. 用 Jupyter 打开：
+   - `data/pose17_viz_demo.ipynb`
+2. 在第一格中修改：
+   - `INPUT_JSON = "0004_firstaction1_20260408_202501.json"`
+3. 按顺序运行 notebook 单元格
+
+### 当前默认行为
+- 只读取 `data/` 目录中的原始样本
+- 默认显示方向为：`clockwise_90`
+- 动图右下角显示当前帧时间，格式为：`mm:ss.SSS`
+- 不改原始 JSON，不做重采样，不导出 `gif/mp4`
+
+### Python 依赖
+运行 notebook 前请确保当前环境安装：
+- `numpy`
+- `matplotlib`
+- `jupyter`
 
 ---
 
