@@ -226,6 +226,7 @@ data/data/com.lenovo.taichivision/files/captures/
 - [dev_log_008_2026-04-02.md](logs/dev_log_008_2026-04-02.md)
 - [dev_log_009_2026-04-08.md](logs/dev_log_009_2026-04-08.md)
 - [dev_log_010_2026-04-09.md](logs/dev_log_010_2026-04-09.md)
+- [dev_log_011_2026-04-09.md](logs/dev_log_011_2026-04-09.md)
 
 ## 说明
 当前仓库以中文 README 为主，便于项目内部同步与开发记录对齐。
