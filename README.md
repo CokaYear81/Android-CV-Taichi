@@ -2,7 +2,6 @@
 
 一个基于安卓摄像头与 `MediaPipe Pose` 的动作采集与可视化项目，当前重点是稳定完成**手机端关键点采集、骨架显示、样本导出**，为后续 `PyTorch` 训练做准备。
 
-[English Version](README_EN.md)
 
 ---
 
