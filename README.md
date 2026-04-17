@@ -2,6 +2,8 @@
 
 一个基于安卓摄像头与 `MediaPipe Pose` 的动作采集与可视化项目，当前重点是稳定完成**手机端关键点采集、骨架显示、样本导出**，为后续 `PyTorch` 训练做准备。
 
+[English Version](README_EN.md)
+
 ---
 
 ## 当前状态
@@ -74,7 +76,16 @@ android_app/
 │   ├── src/main/res/
 │   │   └── layout/       # 主界面布局
 │   └── src/main/assets/  # MediaPipe 模型文件
-├── data/                 # Python 可视化示例数据与 demo notebook
+├── data/                  # 原始数据集
+│   ├── 0_ready/           
+│   ├── 1_lift_sky/        
+│   ├── ...                
+│   ├── negative/          # 负样本/干扰动作 JSON 文件
+│   └── pose17_viz_demo.ipynb #可视化 Demo Notebook
+├── data_transform/        # 数据归一化文件
+│   └── trans.py           # 核心脚本：负责 JSON 到 CSV 的清洗与归一化
+├── outputfile/            # 成品数据
+│   └── baduanjin_normalized.csv # 最终生成的全量归一化训练数据集
 ├── pose17_viz/           # pose17_v1 JSON 读取、预览与动画工具包
 ├── gradle/
 ├── logs/                 # 开发日志
@@ -249,6 +260,34 @@ data/data/com.lenovo.taichivision/files/captures/
 
 ---
 
+## Python 归一化脚本（data_transform）
+
+当前仓库新增并统一了 `pose17_v1` 口径的归一化脚本：
+
+- `data_transform/trans.py`
+  - 面向 `pose17_v1` 导出格式（读取 `frames[].pose_landmarks`）
+  - 对每帧 `17` 点做中心化 + 躯干尺度归一化
+  - 跳过 `has_pose=false` 帧与低可见度帧（均值阈值默认 `0.5`）
+  - 输出帧级 CSV（默认文件：`baduanjin_normalized.csv`）
+
+### 当前默认输入假设
+- 输入目录按动作分类子文件夹组织（`DATA_DIR/<label>/*.json`）
+- JSON 顶层 `landmark_schema_version = "pose17_v1"`
+- 帧结构包含：
+  - `frame_index`
+  - `timestamp_ms`
+  - `pose_landmarks`（长度固定 `17`）
+
+### 输出字段
+- `filename`
+- `sample_id`
+- `frame_index`
+- `timestamp_ms`
+- `x0,y0,z0 ... x16,y16,z16`
+- `label`
+
+---
+
 ## 开发日志
 
 当前仓库已同步收录开发日志，便于协作、回溯和阶段复盘：
@@ -264,6 +303,7 @@ data/data/com.lenovo.taichivision/files/captures/
 - [dev_log_009_2026-04-08.md](logs/dev_log_009_2026-04-08.md)
 - [dev_log_010_2026-04-09.md](logs/dev_log_010_2026-04-09.md)
 - [dev_log_011_2026-04-09.md](logs/dev_log_011_2026-04-09.md)
+- [dev_log_012_2026-04-18.md](logs/dev_log_012_2026-04-18.md)
 
 ## 说明
 当前仓库以中文 README 为主，便于项目内部同步与开发记录对齐。
