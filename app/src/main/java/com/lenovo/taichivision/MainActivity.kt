@@ -16,13 +16,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.camera.video.FileOutputOptions
-import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
-import androidx.camera.video.Recorder
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoCapture
-import androidx.camera.video.VideoRecordEvent
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -41,7 +34,6 @@ import com.lenovo.taichivision.data.PoseSampleRecord
 import com.lenovo.taichivision.data.PoseSampleWriter
 import com.lenovo.taichivision.pose.PoseResultBundle
 import com.lenovo.taichivision.ui.OverlayView
-import java.io.File
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -73,8 +65,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var captureButton: Button
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private var poseLandmarker: PoseLandmarker? = null
-    private var videoCapture: VideoCapture<Recorder>? = null
-    private var activeRecording: Recording? = null
     @Volatile
     private var lastFrameWidth = 0
     @Volatile
@@ -213,10 +203,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            val recorder = Recorder.Builder()
-                .setQualitySelector(QualitySelector.from(Quality.SD))
-                .build()
-            videoCapture = VideoCapture.withOutput(recorder)
             val imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
@@ -233,8 +219,7 @@ class MainActivity : AppCompatActivity() {
                     this,
                     cameraSelector,
                     preview,
-                    imageAnalysis,
-                    videoCapture
+                    imageAnalysis
                 )
                 statusTextView.text = "Camera preview started."
             } catch (exception: Exception) {
@@ -291,16 +276,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val videoCaptureUseCase = videoCapture
-        if (videoCaptureUseCase == null) {
-            statusTextView.text = "Video capture is not ready."
-            return
-        }
-
         val sampleId = buildSampleId(subjectId, actionName)
         val captureStartedAt = currentIsoTimestamp()
-        val videoFile = PoseSampleWriter.buildVideoFile(this, sampleId)
-        val videoRelativePath = PoseSampleWriter.getRelativeVideoPath(sampleId)
 
         synchronized(captureLock) {
             captureState = CaptureState.RECORDING
@@ -310,7 +287,7 @@ class MainActivity : AppCompatActivity() {
                 actionName = actionName,
                 captureStartedAt = captureStartedAt,
                 deviceId = buildDeviceId(),
-                videoFile = videoRelativePath
+                videoFile = null
             )
             currentFrameRecords.clear()
             pendingFrameInfos.clear()
@@ -320,14 +297,6 @@ class MainActivity : AppCompatActivity() {
 
         setCaptureInputsEnabled(false)
         captureButton.text = "Stop Capture"
-
-        val fileOutputOptions = FileOutputOptions.Builder(videoFile).build()
-        activeRecording = videoCaptureUseCase.output
-            .prepareRecording(this, fileOutputOptions)
-            .start(ContextCompat.getMainExecutor(this)) { event ->
-                handleVideoRecordEvent(event, videoFile)
-            }
-
         statusTextView.text = "Capture started: $sampleId"
     }
 
@@ -339,101 +308,71 @@ class MainActivity : AppCompatActivity() {
         captureState = CaptureState.STOPPING
         captureButton.isEnabled = false
         statusTextView.text = "Stopping capture..."
-        activeRecording?.stop()
+        cameraExecutor.execute {
+            repeat(10) {
+                val queueEmpty = synchronized(captureLock) { pendingFrameInfos.isEmpty() }
+                if (queueEmpty) {
+                    return@repeat
+                }
+                Thread.sleep(50)
+            }
+            finalizeCaptureAndWriteJson()
+        }
     }
 
-    private fun handleVideoRecordEvent(event: VideoRecordEvent, videoFile: File) {
-        when (event) {
-            is VideoRecordEvent.Start -> {
-                runOnUiThread {
-                    statusTextView.text = "Recording video..."
-                }
+    private fun finalizeCaptureAndWriteJson() {
+        val sampleRecord = synchronized(captureLock) {
+            val metadata = currentCaptureMetadata ?: return@synchronized null
+            PoseSampleRecord(
+                sampleId = metadata.sampleId,
+                landmarkSchemaVersion = com.lenovo.taichivision.pose.PoseLandmarkSubset.SCHEMA_VERSION,
+                subjectId = metadata.subjectId,
+                actionName = metadata.actionName,
+                captureStartedAt = metadata.captureStartedAt,
+                captureEndedAt = currentIsoTimestamp(),
+                deviceId = metadata.deviceId,
+                imageWidth = if (metadata.imageWidth > 0) metadata.imageWidth else lastFrameWidth,
+                imageHeight = if (metadata.imageHeight > 0) metadata.imageHeight else lastFrameHeight,
+                rotationDegrees = metadata.rotationDegrees,
+                videoFile = metadata.videoFile,
+                isStandard = metadata.isStandard,
+                errorTags = metadata.errorTags,
+                frames = currentFrameRecords.toList()
+            )
+        }
+
+        if (sampleRecord == null) {
+            runOnUiThread {
+                setCaptureInputsEnabled(true)
+                captureButton.isEnabled = true
+                captureButton.text = "Start Capture"
+                statusTextView.text = "Capture state is missing."
             }
-            is VideoRecordEvent.Finalize -> {
-                if (event.error != VideoRecordEvent.Finalize.ERROR_NONE) {
-                    synchronized(captureLock) {
-                        captureState = CaptureState.IDLE
-                        currentCaptureMetadata = null
-                        currentFrameRecords.clear()
-                        pendingFrameInfos.clear()
-                        captureStartFrameTimestampMs = null
-                        nextFrameIndex = 0
-                    }
-                    activeRecording = null
-                    runOnUiThread {
-                        setCaptureInputsEnabled(true)
-                        captureButton.isEnabled = true
-                        captureButton.text = "Start Capture"
-                        statusTextView.text = "Capture failed: ${event.cause?.message ?: "video finalize error ${event.error}"}"
-                    }
-                    return
-                }
+            return
+        }
 
-                cameraExecutor.execute {
-                    repeat(10) {
-                        val queueEmpty = synchronized(captureLock) { pendingFrameInfos.isEmpty() }
-                        if (queueEmpty) {
-                            return@repeat
-                        }
-                        Thread.sleep(50)
-                    }
-
-                    val sampleRecord = synchronized(captureLock) {
-                        val metadata = currentCaptureMetadata ?: return@synchronized null
-                        PoseSampleRecord(
-                                sampleId = metadata.sampleId,
-                                landmarkSchemaVersion = com.lenovo.taichivision.pose.PoseLandmarkSubset.SCHEMA_VERSION,
-                                subjectId = metadata.subjectId,
-                            actionName = metadata.actionName,
-                            captureStartedAt = metadata.captureStartedAt,
-                            captureEndedAt = currentIsoTimestamp(),
-                            deviceId = metadata.deviceId,
-                            imageWidth = if (metadata.imageWidth > 0) metadata.imageWidth else lastFrameWidth,
-                            imageHeight = if (metadata.imageHeight > 0) metadata.imageHeight else lastFrameHeight,
-                            rotationDegrees = metadata.rotationDegrees,
-                            videoFile = metadata.videoFile,
-                            isStandard = metadata.isStandard,
-                            errorTags = metadata.errorTags,
-                            frames = currentFrameRecords.toList()
-                        )
-                    }
-
-                    if (sampleRecord == null) {
-                        runOnUiThread {
-                            setCaptureInputsEnabled(true)
-                            captureButton.isEnabled = true
-                            captureButton.text = "Start Capture"
-                            statusTextView.text = "Capture state is missing."
-                        }
-                        return@execute
-                    }
-
-                    try {
-                        PoseSampleWriter.writeSample(this, sampleRecord)
-                        runOnUiThread {
-                            statusTextView.text = "Capture saved: ${sampleRecord.sampleId}"
-                        }
-                    } catch (e: Exception) {
-                        runOnUiThread {
-                            statusTextView.text = "JSON write failed: ${e.message}"
-                        }
-                    } finally {
-                        synchronized(captureLock) {
-                            captureState = CaptureState.IDLE
-                            currentCaptureMetadata = null
-                            currentFrameRecords.clear()
-                            pendingFrameInfos.clear()
-                            captureStartFrameTimestampMs = null
-                            nextFrameIndex = 0
-                        }
-                        activeRecording = null
-                        runOnUiThread {
-                            setCaptureInputsEnabled(true)
-                            captureButton.isEnabled = true
-                            captureButton.text = "Start Capture"
-                        }
-                    }
-                }
+        try {
+            PoseSampleWriter.writeSample(this, sampleRecord)
+            runOnUiThread {
+                statusTextView.text = "Capture saved: ${sampleRecord.sampleId}"
+            }
+        } catch (e: Exception) {
+            runOnUiThread {
+                statusTextView.text = "JSON write failed: ${e.message}"
+            }
+        } finally {
+            synchronized(captureLock) {
+                captureState = CaptureState.IDLE
+                currentCaptureMetadata = null
+                currentFrameRecords.clear()
+                pendingFrameInfos.clear()
+                captureStartFrameTimestampMs = null
+                nextFrameIndex = 0
+            }
+            runOnUiThread {
+                setCaptureInputsEnabled(true)
+                captureButton.isEnabled = true
+                captureButton.text = "Start Capture"
             }
         }
     }
@@ -570,8 +509,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        activeRecording?.stop()
-        activeRecording = null
         poseLandmarker?.close()
         poseLandmarker = null
         cameraExecutor.shutdown()

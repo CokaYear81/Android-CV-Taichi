@@ -13,7 +13,7 @@ data class CaptureMetadata(
     val imageWidth: Int = 0,
     val imageHeight: Int = 0,
     val rotationDegrees: Int = 0,
-    val videoFile: String,
+    val videoFile: String? = null,
     val isStandard: Boolean? = null,
     val errorTags: List<String> = emptyList()
 )
@@ -60,7 +60,7 @@ data class PoseSampleRecord(
     val imageWidth: Int,
     val imageHeight: Int,
     val rotationDegrees: Int,
-    val videoFile: String,
+    val videoFile: String? = null,
     val isStandard: Boolean?,
     val errorTags: List<String>,
     val frames: List<PoseFrameRecord>
@@ -76,7 +76,7 @@ data class PoseSampleRecord(
         .put("image_width", imageWidth)
         .put("image_height", imageHeight)
         .put("rotation_degrees", rotationDegrees)
-        .put("video_file", videoFile)
+        .put("video_file", videoFile?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
         .put("is_standard", isStandard?.let { if (it) true else false } ?: JSONObject.NULL)
         .put(
             "error_tags",
