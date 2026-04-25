@@ -77,17 +77,17 @@ android_app/
 │   ├── src/main/res/
 │   │   └── layout/       # 主界面布局
 │   └── src/main/assets/  # MediaPipe 模型文件
-├── data/                  # 原始数据集
-│   ├── 0_ready/           
-│   ├── 1_lift_sky/        
-│   ├── ...                
-│   ├── negative/          # 负样本/干扰动作 JSON 文件
-│   └── pose17_viz_demo.ipynb #可视化 Demo Notebook
-├── data_transform/        # 数据归一化文件
-│   └── trans.py           # 核心脚本：负责 JSON 到 CSV 的清洗与归一化
-├── outputfile/            # 成品数据
-│   └── baduanjin_normalized.csv # 最终生成的全量归一化训练数据集
-├── pose17_viz/           # pose17_v1 JSON 读取、预览与动画工具包
+├── data/                  # raw JSON and processed per-action CSV files
+│   ├── raw/               # raw Android pose17_v1 JSON samples
+│   ├── 0_ready/
+│   ├── 1_lift_sky/
+│   ├── ...
+│   └── negative/
+├── code/                  # Python processing and visualization tools
+│   ├── pose17_pipeline.ipynb
+│   ├── data_transform/
+│   │   └── trans.py
+│   └── pose17_viz/
 ├── gradle/
 ├── logs/                 # 开发日志
 └── README.md
@@ -232,23 +232,23 @@ data/data/com.lenovo.taichivision/files/captures/
 
 为方便在训练前快速检查 `pose17_v1` 样本，仓库当前补充了一套轻量的 Python 可视化工具：
 
-- `pose17_viz/`
+- `code/pose17_viz/`
   - 负责 `pose17_v1` JSON 的读取、校验、摘要、静态预览和骨架动画
-- `data/pose17_viz_demo.ipynb`
+- `code/pose17_pipeline.ipynb`
   - 推荐的 notebook 入口
   - 只需要修改 `INPUT_JSON` 文件名，就可以查看同目录下的其他样本
-- `data/0004_firstaction1_20260408_202501.json`
+- `data/raw/0004_firstaction1_20260408_202501.json`
   - 当前默认示例样本
 
 ### 使用方式
 1. 用 Jupyter 打开：
-   - `data/pose17_viz_demo.ipynb`
+   - `code/pose17_pipeline.ipynb`
 2. 在第一格中修改：
    - `INPUT_JSON = "0004_firstaction1_20260408_202501.json"`
 3. 按顺序运行 notebook 单元格
 
 ### 当前默认行为
-- 只读取 `data/` 目录中的原始样本
+- 只读取 `data/raw/` 目录中的原始样本
 - 默认显示方向为：`clockwise_90`
 - 动图右下角显示当前帧时间，格式为：`mm:ss.SSS`
 - 不改原始 JSON，不做重采样，不导出 `gif/mp4`
@@ -265,14 +265,14 @@ data/data/com.lenovo.taichivision/files/captures/
 
 当前仓库新增并统一了 `pose17_v1` 口径的归一化脚本：
 
-- `data_transform/trans.py`
+- `code/data_transform/trans.py`
   - 面向 `pose17_v1` 导出格式（读取 `frames[].pose_landmarks`）
   - 对每帧 `17` 点做中心化 + 躯干尺度归一化
   - 跳过 `has_pose=false` 帧与低可见度帧（均值阈值默认 `0.5`）
-  - 输出帧级 CSV（默认文件：`baduanjin_normalized.csv`）
+  - 输出帧级 CSV（默认文件：`data/<label>/<sample_id>_normalized.csv`）
 
 ### 当前默认输入假设
-- 输入目录按动作分类子文件夹组织（`DATA_DIR/<label>/*.json`）
+- 输入目录按动作分类子文件夹组织（`data/raw/*.json`）
 - JSON 顶层 `landmark_schema_version = "pose17_v1"`
 - 帧结构包含：
   - `frame_index`
@@ -308,4 +308,6 @@ data/data/com.lenovo.taichivision/files/captures/
 
 ## 说明
 当前仓库以中文 README 为主，便于项目内部同步与开发记录对齐。
+
+
 

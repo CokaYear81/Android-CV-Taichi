@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import csv
 import json
 from typing import Any
 
@@ -66,4 +67,57 @@ def summarize_sample(sample: dict[str, Any]) -> dict[str, Any]:
             sum(visibility_values) / len(visibility_values) if visibility_values else 0.0
         ),
         "source_path": sample.get("_source_path"),
+    }
+
+
+def normalized_csv_columns() -> list[str]:
+    columns = ["filename", "sample_id", "frame_index", "timestamp_ms"]
+    for index in range(POSE17_LANDMARK_COUNT):
+        columns.extend([f"x{index}", f"y{index}", f"z{index}"])
+    columns.append("label")
+    return columns
+
+
+def load_normalized_csv(path: str | Path) -> dict[str, Any]:
+    csv_path = Path(path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"CSV not found: {csv_path}")
+
+    expected_columns = normalized_csv_columns()
+    with csv_path.open("r", encoding="utf-8", newline="") as file:
+        reader = csv.DictReader(file)
+        if reader.fieldnames != expected_columns:
+            raise ValueError(
+                f"Unexpected CSV columns. Expected {len(expected_columns)} columns."
+            )
+        rows = list(reader)
+
+    return {
+        "columns": expected_columns,
+        "rows": rows,
+        "source_path": str(csv_path),
+    }
+
+
+def summarize_normalized_csv(normalized_csv: dict[str, Any]) -> dict[str, Any]:
+    rows = normalized_csv["rows"]
+    if not rows:
+        return {
+            "frame_count": 0,
+            "duration_ms": 0,
+            "feature_dim": POSE17_LANDMARK_COUNT * 3,
+            "labels": [],
+            "source_path": normalized_csv.get("source_path"),
+        }
+
+    timestamps = [int(row["timestamp_ms"]) for row in rows]
+    labels = sorted({str(row["label"]) for row in rows if row.get("label")})
+
+    return {
+        "sample_id": rows[0]["sample_id"],
+        "frame_count": len(rows),
+        "duration_ms": timestamps[-1] - timestamps[0] if len(timestamps) > 1 else 0,
+        "feature_dim": POSE17_LANDMARK_COUNT * 3,
+        "labels": labels,
+        "source_path": normalized_csv.get("source_path"),
     }
