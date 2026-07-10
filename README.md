@@ -1,313 +1,89 @@
-﻿# Android-CV-Taichi
+# Android-CV-Taichi
 
-一个基于安卓摄像头与 `MediaPipe Pose` 的动作采集与可视化项目，当前重点是稳定完成**手机端关键点采集、骨架显示、样本导出**，为后续 `PyTorch` 训练做准备。
+这是一个基于安卓摄像头进行视觉识别，并尝试对太极动作进行评分的小项目。
 
+项目主要使用 `CameraX` 获取实时画面，通过 `MediaPipe Pose Landmarker` 识别人体关键点，在安卓端完成骨架显示、动作样本采集和关键点数据导出。后续这些数据可以继续用于动作评分、规则分析或模型训练。
 
----
+## 目录
 
-## 当前状态
+- [项目说明](#项目说明)
+- [时间线](#时间线)
+- [如何运行](#如何运行)
+- [尾声](#尾声)
 
-### 已完成
-- `week1`
-  - `CameraX Preview`
-  - `ImageAnalysis`
-  - 真机运行与基础构建验证
+## 项目说明
 
-- `week2`
-  - `MediaPipe Pose Landmarker` 接入
-  - 实时姿态识别链路跑通
-  - 骨架 overlay 创建与对齐修复
-  - 采集流程跑通：
-    - 输入 `subject_id`
-    - 输入 `action_name`
-    - `Start Capture / Stop Capture`
-  - 同步导出：
-    - 原始视频 `mp4`
-    - 训练友好的关键点 `json`
+这个项目的核心目标是把安卓手机变成一个轻量的动作采集与分析工具。当前客户端已经可以完成：
 
-- `week3`
-  - 正式关键点格式从 `33` 点切换到 `17` 点
-  - 新增顶层字段：
-    - `landmark_schema_version = "pose17_v1"`
-  - overlay 改为只显示 `17` 点骨架
-  - 导出逻辑改为固定 `17` 点，且无 pose 帧仍补零保留
-
-- `week4`
-  - 核心依赖升级：`MediaPipe Tasks Vision -> 0.10.14`
-  - 针对新款 vivo / iQOO 等设备的运行兼容性做了修复与验证
-  - 当前版本已经完成本地联调，并确认软件可正常运行
-  - 已经进行了python文件对JSON进行归一化处理并导出为CSV文件
-
-### 当前项目定位
-当前仓库已经不只是演示 Demo，而是一个可用于：
-- 实时显示人体骨架
+- 调用安卓摄像头并显示实时预览
+- 使用 `MediaPipe Pose Landmarker` 识别人体姿态
+- 在画面上绘制人体骨架
 - 采集单段动作样本
-- 同步导出 `json + mp4`
-- 将`JSON`文件转化为`CSV`文件并归一化
-- 为后续 `PyTorch + GRU` 训练准备数据
-- 在本地 notebook 中快速检查 `pose17_v1` 样本质量与时间轴
+- 导出关键点 JSON，便于后续在电脑端分析和处理
+- 配合 Python 工具做基础的数据清洗、归一化和可视化
 
----
-
-## 当前技术路线
+整体思路大致是：
 
 ```text
 Android Camera
 -> Pose Keypoints
--> pose17_v1 JSON / Video Export
--> Dataset / Labels / Splits
--> Python / PyTorch Training
--> GRU Baseline
--> Later Rule-based Analysis / On-device Deployment
+-> JSON Export
+-> Data Processing
+-> Action Scoring / Model Exploration
 ```
 
-当前仓库主要覆盖这条链路中的**安卓采集端**。
+本仓库主要完成的是安卓客户端和数据采集分析链路。模型选择、训练和部署属于后续可以继续推进的部分。
 
----
+## 时间线
 
-## 项目目录说明
+- **Week 1：安卓相机采集基础**
+  - 完成 Android 项目搭建，接入 `CameraX Preview` 和 `ImageAnalysis`，并在真机上验证相机预览与分析帧回调。
+  - 日志：[001](logs/dev_log_001_2026-03-18.md), [002](logs/dev_log_002_2026-03-18.md), [003](logs/dev_log_003_2026-03-20.md), [004](logs/dev_log_004_2026-03-20.md), [005](logs/dev_log_005_2026-03-20.md)
 
-```text
-android_app/
-├── app/
-│   ├── src/main/java/com/lenovo/taichivision/
-│   │   ├── data/         # JSON 数据模型与写文件工具
-│   │   ├── pose/         # Pose 结果对象与 17 点格式处理
-│   │   └── ui/           # OverlayView
-│   ├── src/main/res/
-│   │   └── layout/       # 主界面布局
-│   └── src/main/assets/  # MediaPipe 模型文件
-├── data/                  # raw JSON and processed per-action CSV files
-│   ├── raw/               # raw Android pose17_v1 JSON samples
-│   ├── 0_ready/
-│   ├── 1_lift_sky/
-│   ├── ...
-│   └── negative/
-├── code/                  # Python processing and visualization tools
-│   ├── pose17_pipeline.ipynb
-│   ├── data_transform/
-│   │   └── trans.py
-│   └── pose17_viz/
-├── gradle/
-├── logs/                 # 开发日志
-└── README.md
-```
+- **Week 2：姿态识别与采集导出**
+  - 接入 `MediaPipe Pose Landmarker`，实现实时骨架 overlay，并跑通 `Start Capture / Stop Capture` 的样本采集流程。
+  - 日志：[006](logs/dev_log_006_2026-03-30.md), [007](logs/dev_log_007_2026-03-30.md), [008](logs/dev_log_008_2026-04-02.md)
 
----
+- **Week 3：关键点格式整理**
+  - 将正式采集数据整理为更适合后续训练和分析的 17 点骨架格式，补充 JSON schema，并处理无人体帧的补零逻辑。
+  - 日志：[009](logs/dev_log_009_2026-04-08.md)
 
-## 环境要求
-- Android Studio
-- Android SDK
-- 一台支持 USB 调试的安卓手机
-- 可联网的 Gradle 环境
-
-建议：
-- 使用真机而不是模拟器
-- 使用后置摄像头
-- 保证人物全身入镜
-
----
+- **Week 4：兼容性与数据处理工具**
+  - 升级 `MediaPipe Tasks Vision`，修复部分 vivo / iQOO 设备兼容问题；同时整理 Python 可视化、归一化脚本和 notebook 工作流。
+  - 日志：[010](logs/dev_log_010_2026-04-09.md), [011](logs/dev_log_011_2026-04-09.md), [012](logs/dev_log_012_2026-04-18.md), [013](logs/dev_log_013_2026-04-25.md)
 
 ## 如何运行
 
-### 1. 克隆仓库
-```bash
-git clone https://github.com/CokaYear81/Android-CV-Taichi.git
-```
-
-### 2. 用 Android Studio 打开项目
-打开目录：
+1. 用 Android Studio 打开本目录：
 
 ```text
 android_app
 ```
 
-### 3. 同步依赖
-首次打开后等待 `Gradle Sync` 完成。
+2. 等待 Gradle Sync 完成。
 
-### 4. 连接手机并运行
-- 打开手机开发者模式和 USB 调试
-- 连接手机
-- 在 Android Studio 中点击 `Run`
+3. 连接一台开启 USB 调试的安卓手机。
 
----
+4. 点击 Android Studio 的 `Run`，将 App 安装到真机。
 
-## 模型文件说明
-项目使用 `MediaPipe Pose Landmarker`。
+5. 在 App 中输入 `subject_id` 和 `action_name`，点击 `Start Capture` 开始采集，点击 `Stop Capture` 保存样本。
 
-默认模型文件：
-
-```text
-app/src/main/assets/pose_landmarker_lite.task
-```
-
-如果拉下仓库后缺少该文件，请按 MediaPipe 官方说明补入模型文件。
-
----
-
-## 当前 App 怎么用
-启动后你会看到：
-- 相机预览
-- 实时骨架 overlay
-- 采集输入区
-
-### 采集步骤
-1. 输入 `subject_id`
-2. 输入 `action_name`
-3. 点击 `Start Capture`
-4. 做动作
-5. 点击 `Stop Capture`
-
-### 当前采集假设
-- 固定正面机位
-- 单人采集
-- 全身入镜
-- 采集时同步保存：
-  - 原始视频
-  - 关键点 JSON
-
----
-
-## 导出文件位置
-导出文件保存在手机 App 私有目录：
-
-```text
-files/captures/landmarks/
-files/captures/raw_videos/
-```
-
-在 Android Studio 的 `Device Explorer` 中可找到完整路径：
-
-```text
-data/data/com.lenovo.taichivision/files/captures/landmarks/
-data/data/com.lenovo.taichivision/files/captures/raw_videos/
-```
-
----
-
-## 如何把数据拉到电脑
-在 Android Studio 中：
-
-```text
-View -> Tool Windows -> Device Explorer
-```
-
-然后进入：
+导出的数据可通过 Android Studio 的 Device Explorer 拉取：
 
 ```text
 data/data/com.lenovo.taichivision/files/captures/
 ```
 
-找到目标 `json` 或 `mp4` 后：
-- 右键
-- 选择 `Save As...` 或 `Pull`
-- 保存到本地目录做后续训练与整理
+其中关键点文件通常在：
 
----
+```text
+files/captures/landmarks/
+```
 
-## 导出 JSON 的当前格式
-当前正式样本格式为：
-- `landmark_schema_version = "pose17_v1"`
-- 单样本核心张量形状可整理为：
-  - `T x 17 x 4`
-- 每帧保留：
-  - `frame_index`
-  - `timestamp_ms`
-  - `has_pose`
-  - `pose_landmarks`
+## 尾声
 
-无 pose 帧仍会补零保留，方便后续直接做训练张量堆叠。
+这个项目算是一个在学期中进行尝试的小项目。后续更完整的方向已经由导师继续推进和完善了。
 
----
+在比较紧张的学期里，我们自己查资料、搭环境、调安卓端、试姿态识别，也一点点把数据采集和分析流程搭了起来。当然也有遗憾：我们主要完成的是安卓客户端侧的数据采集和基础分析工作，模型的具体选取、训练和部署没有来得及再深入推进，orz。
 
-## 下一步方向
-- 围绕八段锦预备式建立第一版可训练数据集
-- 继续稳定手机端关键点采集
-- 完成数据清洗、标签定义与数据划分
-- 为后续 `PyTorch + GRU` 二分类训练做准备
-
----
-
-## Python 可视化工具
-
-为方便在训练前快速检查 `pose17_v1` 样本，仓库当前补充了一套轻量的 Python 可视化工具：
-
-- `code/pose17_viz/`
-  - 负责 `pose17_v1` JSON 的读取、校验、摘要、静态预览和骨架动画
-- `code/pose17_pipeline.ipynb`
-  - 推荐的 notebook 入口
-  - 只需要修改 `INPUT_JSON` 文件名，就可以查看同目录下的其他样本
-- `data/raw/0004_firstaction1_20260408_202501.json`
-  - 当前默认示例样本
-
-### 使用方式
-1. 用 Jupyter 打开：
-   - `code/pose17_pipeline.ipynb`
-2. 在第一格中修改：
-   - `INPUT_JSON = "0004_firstaction1_20260408_202501.json"`
-3. 按顺序运行 notebook 单元格
-
-### 当前默认行为
-- 只读取 `data/raw/` 目录中的原始样本
-- 默认显示方向为：`clockwise_90`
-- 动图右下角显示当前帧时间，格式为：`mm:ss.SSS`
-- 不改原始 JSON，不做重采样，不导出 `gif/mp4`
-
-### Python 依赖
-运行 notebook 前请确保当前环境安装：
-- `numpy`
-- `matplotlib`
-- `jupyter`
-
----
-
-## Python 归一化脚本（data_transform）
-
-当前仓库新增并统一了 `pose17_v1` 口径的归一化脚本：
-
-- `code/data_transform/trans.py`
-  - 面向 `pose17_v1` 导出格式（读取 `frames[].pose_landmarks`）
-  - 对每帧 `17` 点做中心化 + 躯干尺度归一化
-  - 跳过 `has_pose=false` 帧与低可见度帧（均值阈值默认 `0.5`）
-  - 输出帧级 CSV（默认文件：`data/<label>/<sample_id>_normalized.csv`）
-
-### 当前默认输入假设
-- 输入目录按动作分类子文件夹组织（`data/raw/*.json`）
-- JSON 顶层 `landmark_schema_version = "pose17_v1"`
-- 帧结构包含：
-  - `frame_index`
-  - `timestamp_ms`
-  - `pose_landmarks`（长度固定 `17`）
-
-### 输出字段
-- `filename`
-- `sample_id`
-- `frame_index`
-- `timestamp_ms`
-- `x0,y0,z0 ... x16,y16,z16`
-- `label`
-
----
-
-## 开发日志
-
-当前仓库已同步收录开发日志，便于协作、回溯和阶段复盘：
-
-- [dev_log_001_2026-03-18.md](logs/dev_log_001_2026-03-18.md)
-- [dev_log_002_2026-03-18.md](logs/dev_log_002_2026-03-18.md)
-- [dev_log_003_2026-03-20.md](logs/dev_log_003_2026-03-20.md)
-- [dev_log_004_2026-03-20.md](logs/dev_log_004_2026-03-20.md)
-- [dev_log_005_2026-03-20.md](logs/dev_log_005_2026-03-20.md)
-- [dev_log_006_2026-03-30.md](logs/dev_log_006_2026-03-30.md)
-- [dev_log_007_2026-03-30.md](logs/dev_log_007_2026-03-30.md)
-- [dev_log_008_2026-04-02.md](logs/dev_log_008_2026-04-02.md)
-- [dev_log_009_2026-04-08.md](logs/dev_log_009_2026-04-08.md)
-- [dev_log_010_2026-04-09.md](logs/dev_log_010_2026-04-09.md)
-- [dev_log_011_2026-04-09.md](logs/dev_log_011_2026-04-09.md)
-- [dev_log_012_2026-04-18.md](logs/dev_log_012_2026-04-18.md)
-
-## 说明
-当前仓库以中文 README 为主，便于项目内部同步与开发记录对齐。
-
-
-
+如果继续往动作分类和评分方向做，可以参考 [ZHmQAQ/PoseClassifier](https://github.com/ZHmQAQ/PoseClassifier)。它和我们的工作有不少重合，比如人体关键点、传统动作分类、动作评分等，而且整体完成度更高，可以作为后续模型和评分路线的参考。
