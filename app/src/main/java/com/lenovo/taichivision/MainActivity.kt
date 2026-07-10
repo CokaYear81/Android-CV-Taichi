@@ -32,6 +32,7 @@ import com.lenovo.taichivision.data.LandmarkRecord
 import com.lenovo.taichivision.data.PoseFrameRecord
 import com.lenovo.taichivision.data.PoseSampleRecord
 import com.lenovo.taichivision.data.PoseSampleWriter
+import com.lenovo.taichivision.pose.Coco17LandmarkMapper
 import com.lenovo.taichivision.pose.PoseResultBundle
 import com.lenovo.taichivision.ui.OverlayView
 import java.time.OffsetDateTime
@@ -325,7 +326,7 @@ class MainActivity : AppCompatActivity() {
             val metadata = currentCaptureMetadata ?: return@synchronized null
             PoseSampleRecord(
                 sampleId = metadata.sampleId,
-                landmarkSchemaVersion = com.lenovo.taichivision.pose.PoseLandmarkSubset.SCHEMA_VERSION,
+                landmarkSchemaVersion = Coco17LandmarkMapper.SCHEMA_VERSION,
                 subjectId = metadata.subjectId,
                 actionName = metadata.actionName,
                 captureStartedAt = metadata.captureStartedAt,
@@ -446,8 +447,7 @@ class MainActivity : AppCompatActivity() {
             return zeroLandmarkRecords()
         }
 
-        val selectedLandmarks =
-            com.lenovo.taichivision.pose.PoseLandmarkSubset.selectLandmarks(landmarks)
+        val selectedLandmarks = Coco17LandmarkMapper.selectLandmarks(landmarks)
 
         val mappedLandmarks = selectedLandmarks.map { landmark ->
             LandmarkRecord(
@@ -458,7 +458,7 @@ class MainActivity : AppCompatActivity() {
             )
         }.toMutableList()
 
-        while (mappedLandmarks.size < com.lenovo.taichivision.pose.PoseLandmarkSubset.OUTPUT_LANDMARK_COUNT) {
+        while (mappedLandmarks.size < Coco17LandmarkMapper.OUTPUT_LANDMARK_COUNT) {
             mappedLandmarks.add(
                 LandmarkRecord(
                     x = 0f,
@@ -473,7 +473,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun zeroLandmarkRecords(): List<LandmarkRecord> =
-        List(com.lenovo.taichivision.pose.PoseLandmarkSubset.OUTPUT_LANDMARK_COUNT) {
+        List(Coco17LandmarkMapper.OUTPUT_LANDMARK_COUNT) {
         LandmarkRecord(
             x = 0f,
             y = 0f,
